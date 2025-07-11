@@ -1,23 +1,3 @@
-import streamlit as st
-import openai
-
-st.set_page_config(page_title="GPT Query Assistant", layout="centered")
-st.title("🧠 GPT Query Assistant")
-st.write("Ask anything and get a smart response!")
-
-# Store key in session state
-if 'api_key' not in st.session_state:
-    st.session_state.api_key = ""
-
-# Input OpenAI API Key
-st.text_input(
-    "🔑 Enter your OpenAI API Key",
-    type="password",
-    key="api_key",
-    placeholder="sk-...",
-    help="Your key is not saved or shared.",
-)
-
 prompt = """
 🧠 FinanceGPT – AI Financial Advisor Prompt
 You are FinanceGPT, a smart, professional, and trusted AI Financial Advisor built for users in India. Your goal is to help users make well-informed and personalized financial decisions based on their goals, needs, and current financial situation.
@@ -155,31 +135,69 @@ Tax Planning	“How to save under 80C?”	Income, investments made
 Debt	“How to manage EMI load?”	Total debt, interest rates, income
 Budgeting	“How to manage salary of ₹50,000?”	Income, fixed expenses, goals
 """
+import streamlit as st
+import openai
 
-# Ask query
-query = st.text_area("💬 Enter your query:", height=100)
+# --- Page Config ---
+st.set_page_config(page_title="ChatGPT-Style Assistant", layout="centered")
 
-if st.button("Ask GPT"):
+st.title("🧠 Jio Financial Advisor")
+
+# --- Session State ---
+if "api_key" not in st.session_state:
+    st.session_state.api_key = ""
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "system", "content": prompt}
+    ]
+
+# --- Sidebar for API Key ---
+with st.sidebar:
+    st.text_input(
+        "🔑 OpenAI API Key",
+        type="password",
+        key="api_key",
+        placeholder="sk-...",
+        help="Stored only during session."
+    )
+    if st.button("🧹 Clear Chat"):
+        st.session_state.messages = [
+            {"role": "system", "content": "You are a helpful assistant."}
+        ]
+        st.success("Chat history cleared.")
+
+# --- Display Chat History (Chat Bubble Style) ---
+for msg in st.session_state.messages:
+    if msg["role"] == "user":
+        st.markdown(
+            f"<div style='background:#DCF8C6;padding:10px;border-radius:10px;margin:5px 0'><b>You:</b> {msg['content']}</div>",
+            unsafe_allow_html=True)
+    elif msg["role"] == "assistant":
+        st.markdown(
+            f"<div style='background:#F1F0F0;padding:10px;border-radius:10px;margin:5px 0'><b>GPT:</b> {msg['content']}</div>",
+            unsafe_allow_html=True)
+
+# --- Chat Input Box (Always Visible) ---
+if prompt := st.chat_input("Type your message and press Enter..."):
     if not st.session_state.api_key:
-        st.warning("Please enter your OpenAI API key.")
-    elif not query.strip():
-        st.warning("Please enter a query.")
+        st.warning("Please enter your OpenAI API key in the sidebar.")
     else:
         openai.api_key = st.session_state.api_key
 
+        # Append user input
+        st.session_state.messages.append({"role": "user", "content": prompt})
+
+        # Query GPT
         with st.spinner("Thinking..."):
             try:
                 response = openai.ChatCompletion.create(
                     model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": query}
-                    ]
+                    messages=st.session_state.messages
                 )
-                answer = response['choices'][0]['message']['content']
-                st.success("Response:")
-                st.write(answer)
+                reply = response.choices[0].message["content"]
+                st.session_state.messages.append({"role": "assistant", "content": reply})
+                st.rerun()
             except openai.error.AuthenticationError:
-                st.error("Invalid OpenAI API key. Please check and try again.")
+                st.error("❌ Invalid API key.")
             except Exception as e:
-                st.error(f"Something went wrong: {str(e)}")
+                st.error(f"⚠️ Error: {str(e)}")
