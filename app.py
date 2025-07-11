@@ -1,20 +1,22 @@
 import streamlit as st
 import openai
-import os
 
-# Load from environment or .env
-# Set your OpenAI API Key
-openai.api_key = os.getenv("OPENAI_API_KEY")
-# from dotenv import load_dotenv
-# load_dotenv()
+st.set_page_config(page_title="GPT Query Assistant", layout="centered")
+st.title("🧠 GPT Query Assistant")
+st.write("Ask anything and get a smart response!")
 
+# Store key in session state
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = ""
 
-# Streamlit app config
-st.set_page_config(page_title="GPT Chat with History", layout="centered")
-
-st.title("💬 GPT Chat Assistant")
-st.markdown("Ask questions and continue your conversation!")
-
+# Input OpenAI API Key
+st.text_input(
+    "🔑 Enter your OpenAI API Key",
+    type="password",
+    key="api_key",
+    placeholder="sk-...",
+    help="Your key is not saved or shared.",
+)
 
 prompt = """
 🧠 FinanceGPT – AI Financial Advisor Prompt
@@ -154,37 +156,30 @@ Debt	“How to manage EMI load?”	Total debt, interest rates, income
 Budgeting	“How to manage salary of ₹50,000?”	Income, fixed expenses, goals
 """
 
-# Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "system", "content": prompt}
-    ]
+# Ask query
+query = st.text_area("💬 Enter your query:", height=100)
 
-# Show past conversation
-for msg in st.session_state.messages[1:]:  # skip system prompt
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+if st.button("Ask GPT"):
+    if not st.session_state.api_key:
+        st.warning("Please enter your OpenAI API key.")
+    elif not query.strip():
+        st.warning("Please enter a query.")
+    else:
+        openai.api_key = st.session_state.api_key
 
-# Input box
-query = st.chat_input("Type your message...")
-
-if query:
-    # Add user message to history
-    st.session_state.messages.append({"role": "user", "content": query})
-    with st.chat_message("user"):
-        st.markdown(query)
-
-    # Get GPT response
-    with st.chat_message("assistant"):
-        with st.spinner("GPT is thinking..."):
+        with st.spinner("Thinking..."):
             try:
                 response = openai.ChatCompletion.create(
                     model="gpt-4",
-                    messages=st.session_state.messages
+                    messages=[
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": query}
+                    ]
                 )
-                reply = response['choices'][0]['message']['content']
-                st.markdown(reply)
-                # Save assistant reply
-                st.session_state.messages.append({"role": "assistant", "content": reply})
+                answer = response['choices'][0]['message']['content']
+                st.success("Response:")
+                st.write(answer)
+            except openai.error.AuthenticationError:
+                st.error("Invalid OpenAI API key. Please check and try again.")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Something went wrong: {str(e)}")
